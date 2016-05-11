@@ -1,0 +1,42 @@
+html, body {
+  padding: 0;
+  margin: 0;
+  font-family: Arial;
+  font-size: 14px;
+  line-height: 1.5;
+  background: #222;
+}
+
+#page {
+  width: 700px;
+  margin: 30px auto;
+}
+
+.paint5 .canvas-wrap {
+  height: 500px;
+  background: #fff;
+}
+.paint5 .toolbelt {
+  padding: 10px 0;
+}
+.paint5 .toolbelt:after {
+  content: "";
+  display: block;
+  clear: both;
+}
+.paint5 .tool {
+  float: left;
+  margin-right: 5px;
+  height: 40px;
+  width: 60px;
+  text-align: center;
+  line-height: 40px;
+  background: #555;
+  cursor: pointer;
+}
+.paint5 .tool-pen:before {
+  content: "Pen";
+}
+.paint5 .tool-brush:before {
+  content: "Brush";
+}
