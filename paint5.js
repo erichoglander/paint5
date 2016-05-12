@@ -19,7 +19,11 @@ function paint5(wrap, config) {
     x: 0, 
     y: 0
   };
-  this.strokes = [];
+  this.replay = null;
+  this.replay_playing = false;
+  this.replay_start = 0;
+  this.last_point = null;
+  this.last_move = 0;
   this.is_down = false;
   this.ctx = null;
   
@@ -54,6 +58,7 @@ function paint5(wrap, config) {
     this.ctx = this.tags.canvas.getContext("2d");
     this.bind();
     this.onResize();
+    this.reset();
   }
 
   this.bind = function() {
@@ -73,29 +78,42 @@ function paint5(wrap, config) {
     this.pos = this.getPos(this.tags.canvas);
   }
   this.onDown = function(e) {
-    this.is_down = true;
-    this.strokeStart(this.getPoint(e));
+    if (!this.is_down) {
+      this.is_down = true;
+      this.strokeStart(this.getPoint(e));
+    }
   }
   this.onUp = function(e) {
-    this.is_down = false;
-    this.strokeEnd();
+    if (this.is_down) {
+      this.is_down = false;
+      this.strokeEnd();
+    }
   }
   this.onMove = function(e) {
-    if (this.is_down)
-      this.pointAdd(this.getPoint(e));
+    if (this.is_down) {
+      var t = Date.now();
+      // We dont have to record every move
+      if (t - this.last_move > 15) {
+        this.pointAdd(this.getPoint(e));
+        this.last_move = t;
+      }
+    }
   }
 
   this.strokeStart = function(p) {
-    this.strokes.unshift([p]);
     this.drawStart(p);
+    this.last_point = p;
+    this.record("strokeStart", p);
   }
   this.strokeEnd = function() {
     this.drawStop();
+    this.last_point = null;
+    this.record("strokeEnd");
   }
   this.pointAdd = function(p) {
-    p.created = Date.now();
-    this.strokes[0].unshift(p);
-    this.drawPoint(p, this.strokes[0][1]);
+    this.drawPoint(p, this.last_point);
+    this.last_point = p;
+    this.record("pointAdd", p);
   }
 
   this.toolOnClick = function(key) {
@@ -108,6 +126,7 @@ function paint5(wrap, config) {
       this.tags.tools[this.tool].classList.remove("active");
     this.tags.tools[key].classList.add("active");
     this.tool = key;
+    this.record("toolSet", key);
   }
 
   this.drawStart = function(p) {
@@ -161,6 +180,52 @@ function paint5(wrap, config) {
 
   this.clear = function() {
     this.tags.canvas.height = this.tags.canvas.height;
+    this.record("clear");
+  }
+
+  this.reset = function() {
+    this.clear();
+    this.replay = { actions: [], config: this.config, tool: this.tool, start: 0 };
+  }
+
+  this.record = function(method) {
+    if (this.replay && !this.replay_playing) {
+      var args = Array.prototype.slice.call(arguments, 1);
+      if (!this.replay.actions.length)
+        this.replay.start = Date.now();
+      this.replay.actions.push({method: method, args: args, t: Date.now()-this.replay.start});
+    }
+  }
+
+  this.replayPlay = function(replay) {
+    if (!replay)
+      replay = this.replay;
+    if (!this.replay.actions.length)
+      return;
+    this.replay_playing = true;
+    this.replay_start = Date.now();
+    this.config = replay.config;
+    this.tool = replay.tool;
+    this.clear();
+    this.replayAction(replay, 0);
+  }
+  this.replayStop = function() {
+    this.replay_playing = false;
+    this.replay_start = 0;
+  }
+  this.replayAction = function(replay, i) {
+    this[replay.actions[i].method].apply(this, replay.actions[i].args);
+    i++;
+    if (i == replay.actions.length) {
+      this.replayStop();
+    }
+    else {
+      var t = replay.actions[i].t - (Date.now() - this.replay_start);
+      var self = this;
+      setTimeout(function() {
+        self.replayAction(replay, i);
+      }, t);
+    }
   }
 
   this.evt = function(on) {
@@ -174,13 +239,17 @@ function paint5(wrap, config) {
 
   this.setConfig = function(config) {
     for (var key in config)
-      this.config[key] = config[key];
+      this.setConfigProperty(key, config[key]);
     if (typeof(this.config.tools[this.tool]) == "undefined") {
       for (var key in this.config.tools) {
         this.tool = key;
         break;
       }
     }
+  }
+  this.setConfigProperty = function(key, value) {
+    this.config[key] = value;
+    this.record("setConfigProperty", key, value);
   }
 
   this.getPos = function(el) {

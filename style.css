@@ -31,8 +31,17 @@ html, body {
   width: 60px;
   text-align: center;
   line-height: 40px;
-  background: #555;
+  background: #aaa;
   cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.paint5 .tool:hover {
+  background: #333;
+  color: #fff;
+}
+.paint5 .tool.active {
+  background: #000;
+  color: #fff;
 }
 .paint5 .tool-pen:before {
   content: "Pen";
