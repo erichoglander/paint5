@@ -40,3 +40,6 @@ html, body {
 .paint5 .tool-brush:before {
   content: "Brush";
 }
+.paint5 .tool-eraser:before {
+  content: "Eraser";
+}

@@ -6,7 +6,8 @@ function paint5(wrap, config) {
   this.config = {
     tools: {
       pen: {},
-      brush: { width: 6 },
+      brush: { width: 5 },
+      eraser: { width: 15 },
     },
     width: 0,
     height: 0,
@@ -116,7 +117,10 @@ function paint5(wrap, config) {
       this.ctx.moveTo(p.x, p.y);
     }
     if (this.tool == "brush") {
-      this.drawBrush(p.x, p.y);
+      this.drawBrush(p.x, p.y, this.config.tools[this.tool].width, this.color, 1);
+    }
+    if (this.tool == "eraser") {
+      this.drawBrush(p.x, p.y, this.config.tools[this.tool].width, [255,255,255], 1);
     }
   }
   this.drawStop = function() {
@@ -133,15 +137,20 @@ function paint5(wrap, config) {
       var d = Math.sqrt(Math.pow(p2.x-p.x,2) + Math.pow(p2.y-p.y, 2));
       for (var i=0; i<d; i++) {
         var s = i/d;
-        this.drawBrush(p2.x*s + p.x*(1-s), p2.y*s + p.y*(1-s));
+        this.drawBrush(p2.x*s + p.x*(1-s), p2.y*s + p.y*(1-s), this.config.tools[this.tool].width, this.color, 0.5);
+      }
+    }
+    if (this.tool == "eraser") {
+      var d = Math.sqrt(Math.pow(p2.x-p.x,2) + Math.pow(p2.y-p.y, 2));
+      for (var i=0; i<d; i++) {
+        var s = i/d;
+        this.drawBrush(p2.x*s + p.x*(1-s), p2.y*s + p.y*(1-s), this.config.tools[this.tool].width, [255,255,255], 0.8);
       }
     }
   }
-  this.drawBrush = function(x,y) {
-    var w = this.config.tools.brush.width;
-    var c = this.color;
+  this.drawBrush = function(x,y,w,c,a) {
     var gradient = this.ctx.createRadialGradient(x, y, 0, x, y, w);
-    gradient.addColorStop(0, "rgba("+c[0]+","+c[1]+","+c[2]+",0.5)");
+    gradient.addColorStop(0, "rgba("+c[0]+","+c[1]+","+c[2]+","+a+")");
     gradient.addColorStop(1, "rgba("+c[0]+","+c[1]+","+c[2]+",0)");
     this.ctx.beginPath();
     this.ctx.arc(x, y, w, 0, 2*Math.PI);
