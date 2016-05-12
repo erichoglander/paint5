@@ -1,4 +1,4 @@
-function paint5(wrap, config) {
+function paint5(wrap, config, settings) {
 
   this.tags = {
     wrap: wrap
@@ -6,15 +6,20 @@ function paint5(wrap, config) {
   this.config = {
     tools: {
       pen: {},
-      brush: { width: 5 },
-      eraser: { width: 15 },
+      brush: {},
+      eraser: {},
     },
     width: 0,
     height: 0,
     touch: false,
+    replay_max_timeout: 300,
   };
-  this.tool = "brush";
-  this.color = [0,100,255];
+  this.settings = {
+    tool: "brush",
+    brush_width: 5,
+    eraser_width: 15,
+    color: [0,100,255],
+  };
   this.pos = {
     x: 0, 
     y: 0
@@ -39,7 +44,7 @@ function paint5(wrap, config) {
     for (var key in this.config.tools) {
       this.tags.tools[key] = document.createElement("div");
       this.tags.tools[key].className = "tool tool-"+key;
-      if (this.tool == key)
+      if (this.settings.tool == key)
         this.tags.tools[key].classList.add("active");
       this.tags.toolbelt.appendChild(this.tags.tools[key]);
     }
@@ -117,53 +122,46 @@ function paint5(wrap, config) {
   }
 
   this.toolOnClick = function(key) {
-    if (this.tool == key)
+    if (this.settings.tool == key || this.replay_playing)
       return;
-    this.toolSet(key);
-  }
-  this.toolSet = function(key) {
-    if (this.tool)
-      this.tags.tools[this.tool].classList.remove("active");
-    this.tags.tools[key].classList.add("active");
-    this.tool = key;
-    this.record("toolSet", key);
+    this.setSetting("tool", key);
   }
 
   this.drawStart = function(p) {
-    if (this.tool == "pen") {
-      this.ctx.strokeStyle = "rgb("+this.color[0]+","+this.color[1]+","+this.color[2]+")";
+    if (this.settings.tool == "pen") {
+      this.ctx.strokeStyle = "rgb("+this.settings.color[0]+","+this.settings.color[1]+","+this.settings.color[2]+")";
       this.ctx.beginPath();
       this.ctx.moveTo(p.x, p.y);
     }
-    if (this.tool == "brush") {
-      this.drawBrush(p.x, p.y, this.config.tools[this.tool].width, this.color, 1);
+    if (this.settings.tool == "brush") {
+      this.drawBrush(p.x, p.y, this.settings.brush_width, this.settings.color, 1);
     }
-    if (this.tool == "eraser") {
-      this.drawBrush(p.x, p.y, this.config.tools[this.tool].width, [255,255,255], 1);
+    if (this.settings.tool == "eraser") {
+      this.drawBrush(p.x, p.y, this.settings.eraser_width, [255,255,255], 1);
     }
   }
   this.drawStop = function() {
-    if (this.tool == "pen") {
+    if (this.settings.tool == "pen") {
       this.ctx.closePath();
     }
   }
   this.drawPoint = function(p, p2) {
-    if (this.tool == "pen") {
+    if (this.settings.tool == "pen") {
       this.ctx.lineTo(p.x, p.y);
       this.ctx.stroke();
     }
-    if (this.tool == "brush") {
+    if (this.settings.tool == "brush") {
       var d = Math.sqrt(Math.pow(p2.x-p.x,2) + Math.pow(p2.y-p.y, 2));
       for (var i=0; i<d; i++) {
         var s = i/d;
-        this.drawBrush(p2.x*s + p.x*(1-s), p2.y*s + p.y*(1-s), this.config.tools[this.tool].width, this.color, 0.5);
+        this.drawBrush(p2.x*s + p.x*(1-s), p2.y*s + p.y*(1-s), this.settings.brush_width, this.settings.color, 0.5);
       }
     }
-    if (this.tool == "eraser") {
+    if (this.settings.tool == "eraser") {
       var d = Math.sqrt(Math.pow(p2.x-p.x,2) + Math.pow(p2.y-p.y, 2));
       for (var i=0; i<d; i++) {
         var s = i/d;
-        this.drawBrush(p2.x*s + p.x*(1-s), p2.y*s + p.y*(1-s), this.config.tools[this.tool].width, [255,255,255], 0.8);
+        this.drawBrush(p2.x*s + p.x*(1-s), p2.y*s + p.y*(1-s), this.settings.eraser_width, [255,255,255], 0.8);
       }
     }
   }
@@ -185,7 +183,8 @@ function paint5(wrap, config) {
 
   this.reset = function() {
     this.clear();
-    this.replay = { actions: [], config: this.config, tool: this.tool, start: 0 };
+    this.replayStop();
+    this.replay = { actions: [], settings: JSON.parse(JSON.stringify(this.settings)), start: 0 };
   }
 
   this.record = function(method) {
@@ -204,8 +203,7 @@ function paint5(wrap, config) {
       return;
     this.replay_playing = true;
     this.replay_start = Date.now();
-    this.config = replay.config;
-    this.tool = replay.tool;
+    this.setSettings(replay.settings);
     this.clear();
     this.replayAction(replay, 0);
   }
@@ -214,6 +212,8 @@ function paint5(wrap, config) {
     this.replay_start = 0;
   }
   this.replayAction = function(replay, i) {
+    if (!this.replay_playing)
+      return;
     this[replay.actions[i].method].apply(this, replay.actions[i].args);
     i++;
     if (i == replay.actions.length) {
@@ -221,6 +221,10 @@ function paint5(wrap, config) {
     }
     else {
       var t = replay.actions[i].t - (Date.now() - this.replay_start);
+      if (t > this.config.replay_max_timeout) {
+        this.replay_start-= t-this.config.replay_max_timeout;
+        t = this.config.replay_max_timeout;
+      }
       var self = this;
       setTimeout(function() {
         self.replayAction(replay, i);
@@ -239,17 +243,27 @@ function paint5(wrap, config) {
 
   this.setConfig = function(config) {
     for (var key in config)
-      this.setConfigProperty(key, config[key]);
-    if (typeof(this.config.tools[this.tool]) == "undefined") {
+      this.config[key] = config[key];
+  }
+
+  this.setSettings = function(settings) {
+    for (var key in settings)
+      this.setSetting(key, settings[key]);
+    if (typeof(this.config.tools[this.settings.tool]) == "undefined") {
       for (var key in this.config.tools) {
-        this.tool = key;
+        this.settings.tool = key;
         break;
       }
     }
   }
-  this.setConfigProperty = function(key, value) {
-    this.config[key] = value;
-    this.record("setConfigProperty", key, value);
+  this.setSetting = function(key, value) {
+    if (key == "tool") {
+      if (this.settings.tool)
+        this.tags.tools[this.settings.tool].classList.remove("active");
+      this.tags.tools[value].classList.add("active");
+    }
+    this.settings[key] = value;
+    this.record("setSetting", key, value);
   }
 
   this.getPos = function(el) {
